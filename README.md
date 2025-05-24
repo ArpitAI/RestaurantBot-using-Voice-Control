@@ -1,10 +1,10 @@
-# ✨ The Golden Spoon AI Chatbot
+# 🗣️ Voice-Powered Restaurant AI Assistant
 
 ### Your restaurant assistant, powered by Gemini 🚀
 
 ---
 
-Welcome to **The Golden Spoon AI Chatbot**, an interactive and intelligent assistant built with Streamlit! This chatbot is designed to provide instant answers about "The Golden Spoon" restaurant's menu, services, and more. Whether you're curious about our hours or craving a specific dish, our chatbot is here to help!
+Welcome to **Voice-Powered Restaurant AI Assistant**, an interactive and intelligent assistant built with Streamlit! This chatbot is designed to provide instant answers about "The Golden Spoon" restaurant's menu, services, and more. Whether you're curious about our hours or craving a specific dish, our chatbot is here to help!
 
 ---
 
@@ -20,7 +20,7 @@ Welcome to **The Golden Spoon AI Chatbot**, an interactive and intelligent assis
 
 ## 🚀 Get Started
 
-Follow these steps to get your own Golden Spoon Chatbot up and running!
+Follow these steps to get your own Voice-Powered Restaurant AI Assistant up and running!
 
 ### 1. Clone the Repository
 
