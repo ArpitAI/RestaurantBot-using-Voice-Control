@@ -8,17 +8,12 @@ import google.generativeai as genai
 import chromadb
 from chromadb import Documents, EmbeddingFunction, Embeddings
 import time
-import tempfile # Added for temporary file handling
-
-# For Speech Recognition
+import tempfile
 import speech_recognition as sr
-
-# For Text-to-Speech
 from gtts import gTTS
-# import io # Not strictly needed with tempfile approach, but harmless
+import re # NEW: Import the regular expression module
 
 # Configure Google Generative AI
-# Robust API key loading for both local (.env) and deployed (st.secrets) environments
 try:
     genai.configure(api_key=st.secrets["GOOGLE_API_KEY"])
 except AttributeError:
@@ -42,35 +37,65 @@ def get_gemini_response(question, context=""):
     response = chat.send_message(full_question, stream=True)
     return response
 
-# Function to convert text to speech and play - MODIFIED FOR LANGUAGE
-def text_to_speech(text, lang='en'): # Added lang parameter with default 'en'
+# Function to convert text to speech and play
+def text_to_speech(text, lang='en'):
     if text:
         try:
-            tts = gTTS(text=text, lang=lang) # Use the provided lang parameter
+            tts = gTTS(text=text, lang=lang)
 
-            # Create a temporary file to save the audio
             with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
                 temp_audio_path = fp.name
                 tts.save(temp_audio_path)
             
-            # Now, pass the path to the temporary file to st.audio
             st.audio(temp_audio_path, format="audio/mp3", start_time=0, autoplay=True)
 
-            # Clean up the temporary file after Streamlit has had a chance to load it
-            time.sleep(0.5) # Give Streamlit a moment to process the file
+            time.sleep(0.5)
             os.remove(temp_audio_path)
 
         except Exception as e:
-            st.error(f"Error converting text to speech in '{lang}': {e}") # Include lang in error
+            st.error(f"Error converting text to speech in '{lang}': {e}")
             st.warning("Speech output might not auto-play or work if there's an internet issue or browser policy.")
+
+# NEW FUNCTION: To remove Markdown formatting from text
+def remove_markdown(text):
+    """
+    Removes common Markdown formatting symbols from a string.
+    """
+    # Remove bold and italics markers
+    text = re.sub(r'\*\*([^\*]+)\*\*', r'\1', text)  # **bold** -> bold
+    text = re.sub(r'\*([^\*]+)\*', r'\1', text)    # *italic* -> italic
+    text = re.sub(r'__([^_]+)__', r'\1', text)  # __bold__ -> bold
+    text = re.sub(r'_([^_]+)_', r'\1', text)    # _italic_ -> italic
+
+    # Remove headings (e.g., # Heading, ## Subheading)
+    text = re.sub(r'^\s*#+\s+', '', text, flags=re.MULTILINE)
+
+    # Remove list markers (e.g., - item, * item, + item)
+    text = re.sub(r'^\s*[-*+]\s+', '', text, flags=re.MULTILINE)
+
+    # Remove inline code blocks (e.g., `code`)
+    text = re.sub(r'`[^`]*`', '', text) 
+    
+    # Remove fenced code blocks (e.g., ```code```)
+    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+
+    # Remove links (keep the link text, remove the URL)
+    text = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', text)
+
+    # Remove blockquotes (e.g., > Quote)
+    text = re.sub(r'^\s*>\s+', '', text, flags=re.MULTILINE)
+
+    # Replace multiple newlines with a single one, and trim leading/trailing whitespace
+    text = re.sub(r'\n\s*\n', '\n', text).strip()
+    
+    # Replace multiple spaces with a single space
+    text = re.sub(r'\s\s+', ' ', text)
+
+    return text
 
 
 # --- Restaurant Documents (KEEP THESE AS IS) ---
-# Note: For multi-language support with RAG, your documents should ideally also be
-# available in the languages you support, or your LLM should be able to translate
-# the query to English before RAG and then translate the answer back to Hindi.
-# For simplicity, we'll assume the LLM can handle cross-lingual understanding
-# with the English documents for now, or that the user sticks to one language.
+# ... (your Document1 to Document11 content)
 Document1 = """Our restaurant is called "The Golden Spoon." We are located at 123 Main Street in Varanasi, Uttar Pradesh. You can reach us by phone at our landline 0542-6543210 or mobile at +91-9876543210. Our website is www.thegoldenspoon.com. We offer limited street parking. The main entrance and dining area are wheelchair accessible. We have a charming outdoor seating area during pleasant weather. We specialize in authentic North Indian cuisine with a modern twist, but also offer a wide range of international dishes. Ask us about our daily specials!"""
 
 Document2 = """Welcome to The Golden Spoon in Varanasi! We offer a diverse menu featuring the best of Indian, Chinese, Continental, South Indian, Italian, Mexican, American, Australian, and Korean cuisines, alongside a selection of popular Indian Street Food & Chaat. Our opening hours are from 11:00 AM to 11:00 PM daily. For reservations or inquiries, please call us at 0542-6543210 or +91-9876543210, or visit our website at www.thegoldenspoon.com.
@@ -78,6 +103,9 @@ Document2 = """Welcome to The Golden Spoon in Varanasi! We offer a diverse menu 
 **Our Menu:**
 
 **Indian Delights:**
+* Srishti dum biyani(₹360) - Vegetarian 
+* Srishti do pyaza(₹360), Srishti handi chicken with laccha paratha(₹400) - Non-Vegetarian
+* Srishti paneer tikka masala(₹360) - Vegetarian
 * Samosa (2 Pcs - ₹80) - Vegetarian
 * Chole Bhature (₹180) - Vegetarian
 * Creamy Butter Chicken (₹380)
@@ -262,6 +290,7 @@ Document10 = """For specific allergen information about any dish, please ask you
 
 Document11 = """We value your feedback immensely and are always looking to improve! If you had a great experience, we'd love for you to share your positive comments and leave a review on our website (www.thegoldenspoon.com/reviews) or on Google Reviews, Zomato, or TripAdvisor. Your positive comments help us grow, motivate our dedicated team, and spread the word about The Golden Spoon. If, for any reason, you are not satisfied with your food or service, please let us know immediately while you are at the restaurant, so we can rectify the situation on the spot. If you've already left, please call us at +91-9876543210 (mobile) or 0542-6543210 (landline) within 24 hours of your visit or delivery. We sincerely apologize if our food or service did not meet your expectations. Could you please tell us more about what specifically was not to your liking (e.g., taste, temperature, cooking level, specific service issue)? We take all feedback seriously and use it to enhance our offerings. As a token of our apology and commitment to your satisfaction, we would like to offer you a complimentary dessert on your next visit, a discount on your next home delivery order, or a gift voucher for a future meal, depending on the nature of the issue. Our aim is to ensure every customer has a truly golden and delightful dining experience with us."""
 
+
 documents = [Document1, Document2, Document3, Document4, Document5, Document6, Document7, Document8, Document9, Document10, Document11]
 
 
@@ -305,7 +334,6 @@ st.title("✨ The Golden Spoon Chatbot")
 st.markdown("---") # A horizontal line for visual separation
 
 # --- Language Selection (NEW) ---
-# Initialize session state for language if not already set
 if 'selected_language' not in st.session_state:
     st.session_state['selected_language'] = 'en' # Default to English
 
@@ -319,10 +347,9 @@ selected_lang_name = st.sidebar.radio(
     options=list(language_options.keys()),
     index=0 if st.session_state['selected_language'] == 'en' else 1
 )
-# Update session state if selection changes
 if language_options[selected_lang_name] != st.session_state['selected_language']:
     st.session_state['selected_language'] = language_options[selected_lang_name]
-    st.rerun() # Rerun to apply language change immediately
+    st.rerun()
 
 # --- Chat History Initialization ---
 if 'chat_history' not in st.session_state:
@@ -340,7 +367,6 @@ current_turn_user_input = None
 voice_input_placeholder = st.empty()
 text_input_placeholder = st.empty()
 
-# The voice input button should always be available.
 with voice_input_placeholder.container():
     st.subheader("Input Options")
     if st.button("🎤 Speak Now"):
@@ -352,8 +378,6 @@ with voice_input_placeholder.container():
                     st.info(f"Say something in {selected_lang_name}!")
                     audio = r.listen(source, timeout=5)
                 
-                # Recognize speech in the selected language
-                # Google Speech Recognition language codes: 'en-US' for English, 'hi-IN' for Hindi
                 lang_code_for_sr = 'hi-IN' if st.session_state['selected_language'] == 'hi' else 'en-US'
                 recognized_speech = r.recognize_google(audio, language=lang_code_for_sr)
                 st.session_state['temp_user_input'] = recognized_speech
@@ -377,43 +401,33 @@ with voice_input_placeholder.container():
 with text_input_placeholder.container():
     typed_user_input = st.chat_input("Or type your question here...", key="text_input_main")
 
-if current_turn_user_input is None: # Only pick from temp_user_input or typed_user_input if not already set
+if current_turn_user_input is None:
     if st.session_state.get('temp_user_input'):
         current_turn_user_input = st.session_state.pop('temp_user_input')
     elif typed_user_input:
         current_turn_user_input = typed_user_input
 
 if current_turn_user_input:
-    # Add user query to chat history
     st.session_state['chat_history'].append(("User", current_turn_user_input))
 
-    # Display user message
     with st.chat_message("user"):
         st.write(current_turn_user_input)
 
-    # Search ChromaDB for relevant context
-    # Note: ChromaDB with current setup is English-centric.
-    # For robust multilingual RAG, you might need a multilingual embedding model
-    # or translation steps before/after RAG.
     embed_fn.document_mode = False 
     result = db.query(query_texts=[current_turn_user_input], n_results=1)
     
     context_document = ""
     if result["documents"] and result["documents"][0]:
         context_document = result["documents"][0][0]
-        # print(f"Retrieved Context: {context_document}") # Uncomment for debugging
 
-    # Get Gemini response with context
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         full_response = ""
         
-        # Instruct Gemini to respond in the selected language
         language_instruction = ""
         if st.session_state['selected_language'] == 'hi':
-            language_instruction = "कृपया हिन्दी में उत्तर दें। " # Please answer in Hindi.
+            language_instruction = "कृपया हिन्दी में उत्तर दें। "
         
-        # Pass the retrieved context and language instruction to the Gemini model
         for chunk in get_gemini_response(f"{language_instruction}{current_turn_user_input}", context_document):
             full_response += chunk.text + " "
             message_placeholder.write(full_response + "▌")
@@ -424,10 +438,10 @@ if current_turn_user_input:
         st.session_state['chat_history'].append(("Assistant", final_assistant_response))
         
         # --- Voice Output Trigger (Backend Logic) ---
-        # Convert assistant's response to speech in the selected language
-        text_to_speech(final_assistant_response, lang=st.session_state['selected_language'])
+        # NEW: Clean the response before converting to speech
+        cleaned_response_for_speech = remove_markdown(final_assistant_response)
+        text_to_speech(cleaned_response_for_speech, lang=st.session_state['selected_language'])
 
-        # Clear the text input box after processing (if input came from text)
         if typed_user_input:
             st.rerun() 
 
